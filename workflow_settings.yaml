@@ -1,0 +1,9 @@
+defaultProject: "your-project"
+defaultDataset: "dataform_staging"
+defaultLocation: "EU"
+defaultAssertionDataset: "dataform_assertions"
+dataformCoreVersion: "3.0.0"
+vars:
+    int_dataset: dataform_intermediate
+    staging_dataset: dataform_staging
+    mart_dataset: mart_google_ads

@@ -1,0 +1,62 @@
+config {
+    type : "incremental",
+    description: "Google Ads campaign table",
+    tags:["ads"],
+    bigquery : {
+        partitionBy : "segments_date",
+        clusterBy: ["campaign_id"]
+    },
+    schema: dataform.projectConfig.vars.mart_dataset,
+}
+
+js {
+  var _delete_days_limit = '7';
+  var _backfill_date = '2022-10-01';
+}
+
+pre_operations {
+
+  DECLARE
+    date_checkpoint DATE;
+  SET
+    date_checkpoint = (
+    ${
+        when(incremental(),
+            `select max(segments_date) from ${self()} where is_final = true -- segments_date >= DATE_SUB(CURRENT_DATE(), interval ${_delete_days_limit} day)`,
+            `select date('${_backfill_date}')`)
+    }
+    );
+    ${
+        when(incremental(),
+            `delete from ${self()} where segments_date > date_checkpoint`
+        )
+
+    }
+}
+
+SELECT
+    cas.campaign_id,
+    cl.campaign_name,
+    cl.campaign_name AS session_campaign,
+    cl.campaign_advertising_channel_type,
+    cas.customer_id,
+    cas.segments_date,
+    SUM(cas.impressions) as impressions,
+    SUM(cas.clicks) AS clicks,
+    SUM(cas.costs) AS costs,
+    cas.is_final
+FROM
+    ${ref('google_ads_fact')} cas
+LEFT JOIN
+    ${ref('google_ads_dim')} cl
+ON
+    cas.campaign_id = cl.campaign_id
+WHERE
+    segments_date > date_checkpoint
+GROUP BY
+    cas.campaign_id,
+    cl.campaign_name,
+    cl.campaign_advertising_channel_type,
+    cas.customer_id,
+    cas.segments_date,
+    cas.is_final

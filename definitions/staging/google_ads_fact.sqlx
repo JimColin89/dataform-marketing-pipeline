@@ -1,0 +1,49 @@
+config {
+    type : "incremental",
+    description: "Google Ads campaign fact table",
+    tags:["ads"],
+    bigquery : {
+        partitionBy : "segments_date",
+        clusterBy: ["campaign_id"]
+    },
+    schema: "dataform.projectConfig.vars.staging_dataset"
+}
+
+js {
+  var _delete_days_limit = '7';
+  var _backfill_date = '2022-10-01';
+}
+
+pre_operations {
+
+  DECLARE
+    date_checkpoint DATE;
+  SET
+    date_checkpoint = (
+    ${
+        when(incremental(),
+            `select max(segments_date) from ${self()} where is_final = true -- segments_date >= DATE_SUB(CURRENT_DATE(), interval ${_delete_days_limit} day)`,
+            `select date('${_backfill_date}')`)
+    }
+    );
+    ${
+        when(incremental(),
+            `delete from ${self()} where segments_date > date_checkpoint`
+        )
+
+    }
+}
+
+SELECT
+    campaign_id,
+    customer_id,
+    SUM(metrics_clicks) as clicks,
+    SUM(metrics_impressions) as impressions,
+    SUM(metrics_cost_micros / 1000000) as costs,
+    segments_date,
+    date_diff(current_date(), segments_date, day) > 3 as is_final,
+FROM
+    ${ref("p_ads_CampaignBasicStats_XXXXXXXXXX")}
+WHERE
+    segments_date > date_checkpoint
+GROUP BY ALL

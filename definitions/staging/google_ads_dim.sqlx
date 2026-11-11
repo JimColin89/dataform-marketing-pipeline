@@ -1,0 +1,26 @@
+config {
+    type: "table",
+    description: "Google Ads campaign dim table",
+    uniqueKey: ["campaign_id"],
+    tags: ["ads"],
+    bigquery: {
+        partitionBy: "date",
+        clusterBy: ["campaign_id"]
+    },
+    schema: "dataform.projectConfig.vars.staging_dataset"
+}
+
+SELECT
+    campaign_id,
+    LOWER(campaign_name) AS campaign_name,
+    customer_id,
+    campaign_advertising_channel_type,
+    _DATA_DATE as date
+FROM (
+    SELECT *, 
+           ROW_NUMBER() OVER (PARTITION BY campaign_id ORDER BY _DATA_DATE DESC) AS rn 
+    FROM ${ref("p_ads_Campaign_XXXXXXXXXX")}
+)
+WHERE 
+    rn = 1
+GROUP BY ALL
